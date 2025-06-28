@@ -1,0 +1,117 @@
+package test.service;
+
+import exceptions.EmptyItemNameException;
+import exceptions.NoItemPresentException;
+import model.IInventoryItem;
+import model.InventoryItem;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import repository.IRepo;
+import repository.Repo;
+import service.IManagement;
+import service.Management;
+
+import java.util.ArrayList;
+import java.util.List;
+
+import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.Mockito.*;
+
+public class ManagementTest {
+
+    private IRepo repo;
+    private IManagement management;
+
+    @BeforeEach
+     void startUp(){
+        repo = mock(Repo.class);
+        management = new Management(repo);
+    }
+
+    @Test
+    public void shouldAddItemSuccessfully(){
+        IInventoryItem item = new InventoryItem("Rice",3,33.3);
+
+        when(repo.addItem(item)).thenReturn(true);
+
+        boolean validate = management.addItem(item);
+
+        assertTrue(validate);
+        verify(repo,times(1)).addItem(item);
+    }
+
+    @Test
+    public void ShouldThrowExceptionWhenAddItemFails(){
+        assertThrows(NoItemPresentException.class, ()->{
+            management.addItem(null);
+        });
+    }
+
+    @Test
+    public void shouldAddListSuccessfully(){
+        List<IInventoryItem> itemList = List.of(
+                new InventoryItem("test1",2,23.2),
+                new InventoryItem("test2",1,3.2),
+                new InventoryItem("test3",4,43.2)
+        );
+
+        when(repo.addListOfItems(itemList)).thenReturn(true);
+
+        boolean validate = management.addList(itemList);
+
+        assertTrue(validate);
+        verify(repo, times(1)).addListOfItems(itemList);
+    }
+
+    @Test
+    public void shouldThrowAnExceptionWhenTryingToAddList(){
+       List<IInventoryItem> empty = new ArrayList<>();
+        assertThrows(NoItemPresentException.class, ()->{
+            management.addList(empty);
+        });
+    }
+
+    @Test
+    public void shouldGetItemSuccessfully(){
+        IInventoryItem item = new InventoryItem("testing", 3,44.2);
+        String name = "testing";
+
+        when(repo.getItem(name)).thenReturn(item);
+
+        IInventoryItem retrieve = management.getItem(name);
+
+        assertEquals("testing",retrieve.getName());
+        assertEquals(3,retrieve.getQuantity());
+        assertEquals(44.2,retrieve.getPrice());
+        verify(repo,times(1)).getItem(name);
+    }
+
+
+    @Test
+    public void shouldThrowAnExceptionWhenTryingToGetItem(){
+        assertThrows(EmptyItemNameException.class, ()->{
+            management.getItem("");
+        });
+    }
+
+    @Test
+    public void shouldRemoveItemSuccessfully(){
+        IInventoryItem item = new InventoryItem("testing", 3,44.2);
+        String id = "1234";
+
+        when(repo.removeItem(id)).thenReturn(true);
+
+        boolean validate = management.removeItem(id);
+
+        assertTrue(validate);
+        verify(repo, times(1)).removeItem(id);
+    }
+
+    @Test
+    public void shouldThrowAnExceptionWhenTryingToRemoveItem(){
+        assertThrows(EmptyItemNameException.class,()->{
+            management.removeItem("");
+        });
+    }
+
+}
