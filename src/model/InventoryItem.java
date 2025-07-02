@@ -3,6 +3,7 @@ package model;
 import util.AutoGenerator;
 
 import java.io.Serializable;
+import java.util.Objects;
 
 /**
  * Represents a single Inventory item with an ID, Name, Quantity and price
@@ -31,6 +32,14 @@ public class InventoryItem implements Serializable , IInventoryItem{
         this.quantity = quantity;
         this.price = price;
     }
+
+    public InventoryItem(String id, String name, int quantity, double price) {
+        this.id = id;
+        this.name = name;
+        this.quantity = quantity;
+        this.price = price;
+    }
+
     //==========Getters================
 
     //Returns the items unique ID
@@ -55,6 +64,18 @@ public class InventoryItem implements Serializable , IInventoryItem{
     @Override
     public double getPrice() {
         return price;
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (o == null || getClass() != o.getClass()) return false;
+        InventoryItem that = (InventoryItem) o;
+        return quantity == that.quantity && Double.compare(price, that.price) == 0 && Objects.equals(name, that.name);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(name, quantity, price);
     }
 
     //returns a String representation of the Inventory item

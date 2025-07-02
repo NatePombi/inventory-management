@@ -11,7 +11,10 @@ import repository.Repo;
 import service.IManagement;
 import service.Management;
 
+import java.sql.SQLException;
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Comparator;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -29,7 +32,7 @@ public class ManagementTest {
     }
 
     @Test
-    public void shouldAddItemSuccessfully(){
+    public void shouldAddItemSuccessfully() throws SQLException {
         IInventoryItem item = new InventoryItem("Rice",3,33.3);
 
         when(repo.addItem(item)).thenReturn(true);
@@ -48,7 +51,7 @@ public class ManagementTest {
     }
 
     @Test
-    public void shouldAddListSuccessfully(){
+    public void shouldAddListSuccessfully() throws SQLException {
         List<IInventoryItem> itemList = List.of(
                 new InventoryItem("test1",2,23.2),
                 new InventoryItem("test2",1,3.2),
@@ -72,7 +75,7 @@ public class ManagementTest {
     }
 
     @Test
-    public void shouldGetItemSuccessfully(){
+    public void shouldGetItemSuccessfully() throws SQLException {
         IInventoryItem item = new InventoryItem("testing", 3,44.2);
         String name = "testing";
 
@@ -95,16 +98,40 @@ public class ManagementTest {
     }
 
     @Test
-    public void shouldRemoveItemSuccessfully(){
+    public void shouldGetItemsSuccessfully() throws SQLException {
+        List<IInventoryItem> items = new ArrayList<>(Arrays.asList(
+                new InventoryItem("Rice", 44,45.3),
+                new InventoryItem("Bread", 2,33.1)
+        ));
+
+        when(repo.getItems()).thenReturn(items);
+
+        List<IInventoryItem> retrievedList = management.getItems();
+        items.sort(Comparator.comparing(IInventoryItem::getId));
+
+        assertEquals(items.get(1).getId(), retrievedList.get(1).getId());
+        assertEquals(items,retrievedList);
+    }
+
+
+    @Test
+    public void shouldThrowAnExceptionWhenTryingToGetAnEmptyList(){
+        assertThrows(NoItemPresentException.class, ()->{
+            management.getItems();
+        });
+    }
+
+    @Test
+    public void shouldRemoveItemSuccessfully() throws SQLException {
         IInventoryItem item = new InventoryItem("testing", 3,44.2);
         String id = "1234";
 
-        when(repo.removeItem(id)).thenReturn(true);
+        when(repo.removeItemById(id)).thenReturn(true);
 
         boolean validate = management.removeItem(id);
 
         assertTrue(validate);
-        verify(repo, times(1)).removeItem(id);
+        verify(repo, times(1)).removeItemById(id);
     }
 
     @Test
@@ -112,6 +139,15 @@ public class ManagementTest {
         assertThrows(EmptyItemNameException.class,()->{
             management.removeItem("");
         });
+    }
+
+    @Test
+    public void shouldThrowSQLExceptionIfRepoFails() throws SQLException {
+        IInventoryItem item = new InventoryItem("Rice", 2, 39.2);
+
+        when(repo.addItem(item)).thenThrow(new SQLException("DB Error"));
+
+        assertThrows(SQLException.class, ()-> management.addItem(item));
     }
 
 }

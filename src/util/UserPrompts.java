@@ -27,15 +27,20 @@ public class UserPrompts {
 
     public int userIntegerPrompt(String message) {
         System.out.print(message);
-        int num = scanner.nextInt();
-        scanner.nextLine();
+        String num = scanner.nextLine().trim();
 
+        try {
+            int number = Integer.parseInt(num);
 
-        if (num <= 0) {
-            throw new InputEmptyException("Input must be greater than zero.");
+            if (number <= 0) {
+                throw new InputEmptyException("Input must be greater than zero.");
+            }
+
+            return number;
         }
-
-        return num;
+        catch (NumberFormatException e){
+            throw new InputMismatchException("Input is not a valid number");
+        }
 
     }
 

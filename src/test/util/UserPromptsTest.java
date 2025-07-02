@@ -1,6 +1,5 @@
 package test.util;
 
-import exceptions.EmptyItemNameException;
 import exceptions.InputEmptyException;
 import org.junit.jupiter.api.Test;
 import util.UserPrompts;
@@ -10,7 +9,6 @@ import java.util.Scanner;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
-import static org.mockito.Mockito.mock;
 
 public class UserPromptsTest {
 
@@ -74,5 +72,16 @@ public class UserPromptsTest {
             userPrompts.userDoublePrompt("Enter: ");
         });
 
+    }
+
+    @Test
+    public void shouldThrowAnExceptionWhenWhitespaceIsEntered(){
+        Scanner scanner = new Scanner("  \n");
+
+        UserPrompts userPrompts = new UserPrompts(scanner);
+
+        assertThrows(InputMismatchException.class, ()->{
+           userPrompts.userDoublePrompt("Enter: ");
+        });
     }
 }

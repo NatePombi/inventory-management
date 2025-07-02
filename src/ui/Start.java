@@ -10,6 +10,7 @@ import service.IManagement;
 import util.ExceptionHandler;
 import util.UserPrompts;
 
+import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.InputMismatchException;
 import java.util.List;
@@ -17,13 +18,11 @@ import java.util.List;
 public class Start {
     private final Menu menu;
     private final UserPrompts userPrompts;
-    private final IRepo repo;
     private final IManagement management;
 
     public Start(Menu menu, UserPrompts userPrompts,IRepo repo,IManagement management){
         this.menu = menu;
         this.userPrompts = userPrompts;
-        this.repo = repo;
         this.management = management;
     }
 
@@ -31,19 +30,24 @@ public class Start {
     public void runApp(){
         boolean cont = true;
 
-        while (cont){
+        while (cont) {
             menu.menu();
-        int input = userPrompts.userIntegerPrompt("Enter the number of the actions above: ");
+            try {
+                int input = userPrompts.userIntegerPrompt("Enter the number of the actions above: ");
 
-        switch (input){
-            case 1 -> addItem();
-            case 2 -> addItems();
-            case 3 -> searchItem();
-            case 4 -> viewAllItems();
-            case 5 -> removeItem();
-            case 6 -> cont = exitApp();
-            default -> throw new IllegalArgumentException("Invalid option chosen");
-        }
+                switch (input) {
+                    case 1 -> addItem();
+                    case 2 -> addItems();
+                    case 3 -> searchItem();
+                    case 4 -> viewAllItems();
+                    case 5 -> removeItem();
+                    case 6 -> cont = exitApp();
+                    default -> throw new IllegalArgumentException("Invalid option chosen");
+                }
+            }catch (IllegalArgumentException | InputMismatchException e){
+                ExceptionHandler.exception(e);
+                System.out.println();
+            }
         }
 
     }
@@ -65,7 +69,7 @@ public class Start {
             else{
                 System.out.println("Failed to add new item");
             }
-        } catch (NoItemPresentException | NullPointerException | InputMismatchException e) {
+        } catch (NoItemPresentException | NullPointerException | InputMismatchException | SQLException e) {
             ExceptionHandler.exception(e);
         }
     }
@@ -92,7 +96,7 @@ public class Start {
                     System.out.println("Failed to add items");
                 }
 
-            } catch (NoItemPresentException | NullPointerException | InputMismatchException e) {
+            } catch (NoItemPresentException | NullPointerException | InputMismatchException | SQLException e) {
                 ExceptionHandler.exception(e);
             }
     }
@@ -112,7 +116,7 @@ public class Start {
                     """,item.getId(),item.getName(),item.getQuantity(),item.getPrice());
 
             System.out.println();
-        } catch (EmptyItemNameException | NullPointerException | InputEmptyException e) {
+        } catch (EmptyItemNameException | NullPointerException | InputEmptyException | SQLException e) {
             ExceptionHandler.exception(e);
         }
     }
@@ -133,7 +137,7 @@ public class Start {
                 System.out.println("--".repeat(20));
             }
 
-        } catch (NoItemPresentException | InputEmptyException e) {
+        } catch (NoItemPresentException | InputEmptyException | SQLException e) {
             ExceptionHandler.exception(e);
         }
     }
@@ -145,7 +149,7 @@ public class Start {
             management.removeItem(name);
 
             System.out.println("Successfully removed the item!");
-        } catch (NoItemPresentException | EmptyItemNameException | InputEmptyException e) {
+        } catch (NoItemPresentException | EmptyItemNameException | InputEmptyException | SQLException e) {
             ExceptionHandler.exception(e);
         }
     }
@@ -166,10 +170,10 @@ public class Start {
             }
             System.out.println();
             System.out.println("GoodBye");
-            return true;
+            return false;
         }
 
-        return false;
+        return true;
     }
 
 

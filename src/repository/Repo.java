@@ -1,20 +1,16 @@
 package repository;
 
-import com.google.gson.Gson;
-import com.google.gson.reflect.TypeToken;
-import exceptions.DataCorruptionException;
+
+import dbConnection.DBConnection;
+
 import exceptions.EmptyItemNameException;
+
 import exceptions.ItemAlreadyExistsException;
 import exceptions.NoItemPresentException;
 import model.IInventoryItem;
 import model.InventoryItem;
 
-import java.io.FileReader;
-import java.io.FileWriter;
-import java.io.IOException;
-import java.lang.reflect.Type;
-import java.nio.file.Files;
-import java.nio.file.Path;
+import java.sql.*;
 import java.util.*;
 
 /**
@@ -24,72 +20,91 @@ import java.util.*;
  * Implements IRepo interface
  */
 public class Repo implements IRepo{
-    private final Gson gson;
-    private final Path path;
 
-    /**
-     * in memory storage of inventory item
-     * Uses id as key for uniqueness
-     */
-    private final Map<String, IInventoryItem> inventoryItemMap = new HashMap<>();
 
 
     /**
      * Constructs the Repository with specified Gson and Path
      * Automatically loads existing items from Json file into the in memory storage
-     *
-     * @param gson :Gson instance for Json serialization and deserialization
-     * @param path :Path to the Json file
      */
-    public Repo(Gson gson, Path path){
-        this.gson = gson;
-        this.path = path;
-        loadListOfItems();
+    public Repo(){
+        if(DBConnection.config){
+            try {
+                DBConnection.testDataInit();
+            } catch (SQLException e) {
+                throw new RuntimeException(e);
+            }
+        }
     }
 
 
     /**
      * Adds a single item to the repository
-     * saves the updated inventory into the Json file
      * @param item: The item to add
      * @return: returns true of the item was added successfully
      * @throws: NoItemPresentException if the item is null
      */
     @Override
-    public boolean addItem(IInventoryItem item){
+    public boolean addItem(IInventoryItem item) throws SQLException {
         if(item == null){
             throw new NoItemPresentException();
         }
 
-        inventoryItemMap.put(item.getId(),item);
-        saveItems();
-        return true;
+        String add = "INSERT INTO inventory(id,name,quantity,price) VALUES(?,?,?,?)";
+
+        try(Connection con = DBConnection.getConnection();
+            PreparedStatement pstm = con.prepareStatement(add);
+        ){
+            pstm.setString(1, item.getId());
+            pstm.setString(2,item.getName());
+            pstm.setInt(3,item.getQuantity());
+            pstm.setDouble(4,item.getPrice());
+            int row = pstm.executeUpdate();
+            return row > 0;
+        }
+        catch (SQLIntegrityConstraintViolationException e){
+            throw new ItemAlreadyExistsException();
+        }
     }
 
     /**
      * Adds a List of item into the repository
-     * saves the updated inventory into the Json file
      * @param items: The List of items to be added
      * @return: True if the items are successfully added
      * @throws: NoItemPresentException if the list of items is null
      * @throws: ItemAlreadyExistsException if any item in the list exists by ID
      */
     @Override
-    public boolean addListOfItems (List<IInventoryItem> items){
-        if(items == null){
+    public boolean addListOfItems (List<IInventoryItem> items) throws SQLException {
+        if(items == null || items.isEmpty()){
             throw new NoItemPresentException();
         }
 
+        String addItems = "INSERT INTO inventory(id,name,quantity,price) VALUES(?,?,?,?)";
 
-        for(IInventoryItem in : items){
-            if(inventoryItemMap.containsKey(in.getId())){
-                throw new ItemAlreadyExistsException();
+        try(Connection con = DBConnection.getConnection();
+            PreparedStatement pstm = con.prepareStatement(addItems))
+        {
+            for(IInventoryItem in : items){
+                pstm.setString(1,in.getId());
+                pstm.setString(2,in.getName());
+                pstm.setInt(3,in.getQuantity());
+                pstm.setDouble(4,in.getPrice());
+                pstm.addBatch();
             }
 
-            inventoryItemMap.put(in.getId(),in);
+            int[] rows = pstm.executeBatch();
+            for(int in : rows){
+                if(in == Statement.EXECUTE_FAILED){
+                    return false;
+                }
+            }
+
+            return true;
         }
-        saveItems();
-        return true;
+        catch (SQLIntegrityConstraintViolationException e){
+            throw new ItemAlreadyExistsException();
+        }
     }
 
     /**
@@ -100,20 +115,29 @@ public class Repo implements IRepo{
      * @throws: NoItemPresentException if there are no items in the list to search/ if there are no items that match the name.
      */
     @Override
-    public IInventoryItem getItem (String name){
+    public IInventoryItem getItem (String name) throws SQLException {
         if(name.isBlank()){
             throw new EmptyItemNameException();
         }
 
-        if(inventoryItemMap.isEmpty()){
-            throw new NoItemPresentException();
-        }
+        String getItem = "SELECT * FROM inventory WHERE name = ?";
 
-       for(Map.Entry<String , IInventoryItem> in : inventoryItemMap.entrySet()){
-           if(in.getValue().getName().equalsIgnoreCase(name)){
-               return in.getValue();
-           }
-       }
+        try(Connection con = DBConnection.getConnection();
+            PreparedStatement pstm = con.prepareStatement(getItem)
+        ){
+            pstm.setString(1,name);
+
+            ResultSet rs = pstm.executeQuery();
+
+            if(rs.next()){
+                String id = rs.getString("id");
+                String itemName = rs.getString("name");
+                int quantity = rs.getInt("quantity");
+                double price = rs.getDouble("price");
+
+                return new InventoryItem(id,itemName,quantity,price);
+            }
+        }
 
        throw new NoItemPresentException();
     }
@@ -124,96 +148,56 @@ public class Repo implements IRepo{
      * @throws: NoItemPresentException if there is no items in the inventory
      */
     @Override
-    public List<IInventoryItem> getItems() {
-        if(inventoryItemMap.isEmpty()){
-            throw new NoItemPresentException();
-        }
-        List<IInventoryItem> listItems = new ArrayList<>();
-        for(Map.Entry<String , IInventoryItem> in : inventoryItemMap.entrySet()){
-            listItems.add(in.getValue());
-        }
-        return listItems;
-    }
+    public List<IInventoryItem> getItems() throws SQLException {
+        String selectAll = "SELECT * FROM inventory ORDER BY id";
 
-
-    /**
-     * Saves the current inventory into the Json file
-     * creates directories if it doesn't exist
-     */
-    private void saveItems(){
-        try{
-            Files.createDirectories(path.getParent());
-
-            try(FileWriter fileWriter = new FileWriter(path.toFile())){
-                List<IInventoryItem> itemList = new ArrayList<>();
-                for(Map.Entry<String, IInventoryItem> in : inventoryItemMap.entrySet()){
-                    itemList.add(in.getValue());
-                }
-
-                gson.toJson(itemList,fileWriter);
+        try(Connection con = DBConnection.getConnection();
+            PreparedStatement pstm = con.prepareStatement(selectAll);
+            ResultSet rs = pstm.executeQuery()
+        ){
+            List<IInventoryItem> items = new ArrayList<>();
+            while(rs.next()){
+                String id = rs.getString("id");
+                String name = rs.getString("name");
+                int quantity = rs.getInt("quantity");
+                double price = rs.getDouble("price");
+                items.add(new InventoryItem(id,name,quantity,price));
             }
-        } catch (IOException e) {
-            throw new RuntimeException("Failed to save items to file",e);
+
+
+            if(items.isEmpty()){
+                throw new NoItemPresentException();
+            }
+
+
+            return items;
         }
     }
+
+
 
     /**
      * Removes item from the inventory by id
-     * Saves the updated inventory to the Json file
      * @param id: ID of item to remove
      * @return: True if item has been removed Successfully and false if not found
      * @throws: EmptyItemNameException if id field is blank/empty
      * @throws: NoItemPresentException if the inventory is empty
      */
     @Override
-    public boolean removeItem(String id) {
+    public boolean removeItemById(String id) throws SQLException {
         if(id.isBlank()){
             throw new EmptyItemNameException();
         }
 
-        if(inventoryItemMap.isEmpty()){
-            throw new NoItemPresentException();
-        }
+       String remove = "DELETE FROM inventory WHERE id = ?";
 
-        boolean remove = inventoryItemMap.entrySet().removeIf(
-          entry -> entry.getKey().equalsIgnoreCase(id)
-        );
-
-        saveItems();
-        return remove;
-    }
-
-    /**
-     * Loads items from the Json file into the in memory map
-     * If file doesn't exist, it Initializes with an empty inventory
-     * Handles the Json parsing errors
-     */
-    private void loadListOfItems(){
-        try{
-            Files.createDirectories(path.getParent());
-
-            if(!Files.exists(path)){
-                return;
-            }
-
-            try(FileReader fileReader = new FileReader(path.toFile())){
-                Type type = new TypeToken<List<InventoryItem>>() {}.getType();
-                List<IInventoryItem> itemList = gson.fromJson(fileReader,type);
-
-                if(itemList.isEmpty()){
-                    System.out.println("No items present");
-                }
-                else{
-                    for(IInventoryItem in : itemList){
-                        inventoryItemMap.put(in.getId(),in);
-                    }
-                }
-            }
-            catch (Exception e){
-                throw new DataCorruptionException("Failed to parse Json file. File might be corrupted ", e);
-            }
-        } catch (IOException e) {
-            throw new RuntimeException("Failed to access the data directory. ", e);
+        try(Connection con = DBConnection.getConnection();
+            PreparedStatement pstm = con.prepareStatement(remove)
+        ){
+            pstm.setString(1,id);
+            int rows = pstm.executeUpdate();
+            return rows>0;
         }
     }
+
 }
